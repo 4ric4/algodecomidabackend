@@ -1,9 +1,9 @@
 {
   "version": 2,
-  "buildCommand": "npm run build && npx prisma generate && npx prisma migrate deploy",
+  "buildCommand": "npm run build && npm run prisma:generate",
   "builds": [
     {
-      "src": "api/**/*.ts",
+      "src": "api/index.ts",
       "use": "@vercel/node"
     }
   ],
@@ -12,8 +12,5 @@
       "src": "/(.*)",
       "dest": "api/index.ts"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }
