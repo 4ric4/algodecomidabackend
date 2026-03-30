@@ -1,0 +1,151 @@
+// This file is optional - you can delete it if not needed
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// User model
+model User {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique
+  username      String    @unique
+  password      String
+  fullName      String
+  avatar        String?
+  bio           String?
+  level         Int       @default(1)
+  xp            Int       @default(0)
+  followers     Int       @default(0)
+  following     Int       @default(0)
+  reviewsCount  Int       @default(0)
+  admin         Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  reviews         Review[]
+  restaurants     Restaurant[]
+  badges          Badge[]
+  favoriteList    FavoriteList[]
+  followersRelations    Follow[]  @relation("follower")
+  followingRelations    Follow[]  @relation("following")
+  comments        Comment[]
+
+  @@map("users")
+}
+
+// Restaurant model
+model Restaurant {
+  id            Int       @id @default(autoincrement())
+  name          String
+  image         String?
+  description   String?
+  rating        Float     @default(0)
+  reviewsCount  Int       @default(0)
+  priceRange    String?
+  cuisine       String[]
+  tags          String[]
+  hours         Json?
+  location      Json
+  createdBy     Int
+  user          User      @relation(fields: [createdBy], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  reviews       Review[]
+  favoriteLists FavoriteList[]
+
+  @@map("restaurants")
+}
+
+// Review model
+model Review {
+  id            Int       @id @default(autoincrement())
+  title         String
+  text          String
+  rating        Int
+  dishes        String[]
+  images        String[]
+  likes         Int       @default(0)
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id])
+  restaurantId  Int
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  comments      Comment[]
+  likedBy       ReviewLike[]
+
+  @@map("reviews")
+}
+
+// Badge model
+model Badge {
+  id            Int       @id @default(autoincrement())
+  name          String    @unique
+  description   String
+  icon          String
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id])
+  unlockedAt    DateTime  @default(now())
+
+  @@map("badges")
+}
+
+// FavoriteList model
+model FavoriteList {
+  id            Int       @id @default(autoincrement())
+  title         String
+  description   String?
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id])
+  restaurants   Restaurant[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("favorite_lists")
+}
+
+// Follow model - para rastrear quem segue quem
+model Follow {
+  id            Int       @id @default(autoincrement())
+  followerId    Int
+  follower      User      @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId   Int
+  following     User      @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+// Comment model - para comentários em reviews (max 1 por usuário)
+model Comment {
+  id            Int       @id @default(autoincrement())
+  text          String
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewId      Int
+  review        Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([userId, reviewId])
+  @@map("comments")
+}
+
+// ReviewLike model - para rastrear quem curtiu cada review
+model ReviewLike {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  reviewId      Int
+  review        Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+
+  @@unique([userId, reviewId])
+  @@map("review_likes")
+}
