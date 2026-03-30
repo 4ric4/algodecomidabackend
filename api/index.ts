@@ -2,11 +2,11 @@ import express, { Express, Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 
-// Import routes
-import authRoutes from '../src/routes/auth.routes'
-import restaurantRoutes from '../src/routes/restaurant.routes'
-import reviewRoutes from '../src/routes/review.routes'
-import userRoutes from '../src/routes/user.routes'
+// Import routes from compiled dist
+import authRoutes from '../dist/routes/auth.routes.js'
+import restaurantRoutes from '../dist/routes/restaurant.routes.js'
+import reviewRoutes from '../dist/routes/review.routes.js'
+import userRoutes from '../dist/routes/user.routes.js'
 
 // Load environment variables
 dotenv.config()
