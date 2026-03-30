@@ -14,12 +14,12 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./",
     "baseUrl": "./",
     "paths": {
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "api"],
+  "include": ["src", "index.ts"],
   "exclude": ["node_modules", "dist"]
 }
