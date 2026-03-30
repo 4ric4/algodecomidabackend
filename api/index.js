@@ -1,79 +1,72 @@
-const express = require('express');
-const cors = require('cors');
-const serverless = require('serverless-http');
-require('dotenv').config();
+module.exports = (req, res) => {
+  // CORS Headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Content-Type', 'application/json');
 
-const app = express();
+  // Handle OPTIONS
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
 
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  // Routes
+  if (req.url === '/api/health' && req.method === 'GET') {
+    res.status(200).end(JSON.stringify({ status: 'ok', message: 'Backend is running!' }));
+    return;
+  }
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  if (req.url === '/api/auth/register' && req.method === 'POST') {
+    res.status(201).end(JSON.stringify({ message: 'Register endpoint' }));
+    return;
+  }
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Backend is running!' });
-});
+  if (req.url === '/api/auth/login' && req.method === 'POST') {
+    res.status(200).end(JSON.stringify({ message: 'Login endpoint' }));
+    return;
+  }
 
-// Auth endpoints
-app.post('/api/auth/register', (req, res) => {
-  res.status(201).json({ message: 'Register endpoint' });
-});
+  if (req.url === '/api/auth/refresh' && req.method === 'POST') {
+    res.status(200).end(JSON.stringify({ message: 'Refresh token endpoint' }));
+    return;
+  }
 
-app.post('/api/auth/login', (req, res) => {
-  res.json({ message: 'Login endpoint' });
-});
+  if (req.url === '/api/auth/logout' && req.method === 'POST') {
+    res.status(200).end(JSON.stringify({ message: 'Logout endpoint' }));
+    return;
+  }
 
-app.post('/api/auth/refresh', (req, res) => {
-  res.json({ message: 'Refresh endpoint' });
-});
+  if (req.url === '/api/restaurants' && req.method === 'GET') {
+    res.status(200).end(JSON.stringify({ message: 'Get restaurants' }));
+    return;
+  }
 
-app.post('/api/auth/logout', (req, res) => {
-  res.json({ message: 'Logout endpoint' });
-});
+  if (req.url === '/api/restaurants' && req.method === 'POST') {
+    res.status(201).end(JSON.stringify({ message: 'Create restaurant' }));
+    return;
+  }
 
-// Restaurant endpoints
-app.get('/api/restaurants', (req, res) => {
-  res.json({ message: 'Get restaurants' });
-});
+  if (req.url === '/api/reviews' && req.method === 'GET') {
+    res.status(200).end(JSON.stringify({ message: 'Get reviews' }));
+    return;
+  }
 
-app.post('/api/restaurants', (req, res) => {
-  res.json({ message: 'Create restaurant' });
-});
+  if (req.url === '/api/reviews' && req.method === 'POST') {
+    res.status(201).end(JSON.stringify({ message: 'Create review' }));
+    return;
+  }
 
-// Review endpoints
-app.get('/api/reviews', (req, res) => {
-  res.json({ message: 'Get reviews' });
-});
+  if (req.url.startsWith('/api/users/') && req.method === 'GET') {
+    res.status(200).end(JSON.stringify({ message: 'Get user' }));
+    return;
+  }
 
-app.post('/api/reviews', (req, res) => {
-  res.json({ message: 'Create review' });
-});
+  if (req.url.startsWith('/api/users/') && req.method === 'PUT') {
+    res.status(200).end(JSON.stringify({ message: 'Update user' }));
+    return;
+  }
 
-// User endpoints
-app.get('/api/users/:id', (req, res) => {
-  res.json({ message: 'Get user' });
-});
-
-app.put('/api/users/:id', (req, res) => {
-  res.json({ message: 'Update user' });
-});
-
-// 404
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ error: 'Server error' });
-});
-
-// Export para Vercel serverless
-module.exports = serverless(app);
+  // 404
+  res.status(404).end(JSON.stringify({ error: 'Route not found' }));
+};
