@@ -1,11 +1,12 @@
 const express = require('express');
 const cors = require('cors');
+const serverless = require('serverless-http');
 require('dotenv').config();
 
 const app = express();
 
 app.use(cors({
-  origin: '*',
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -63,9 +64,6 @@ app.put('/api/users/:id', (req, res) => {
   res.json({ message: 'Update user' });
 });
 
-// Options
-app.options('*', cors());
-
 // 404
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
@@ -77,4 +75,5 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Server error' });
 });
 
-module.exports = app;
+// Export para Vercel serverless
+module.exports = serverless(app);
