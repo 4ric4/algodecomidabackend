@@ -2,11 +2,22 @@ import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 
-const prisma = new PrismaClient()
+// 🔥 Evita múltiplas conexões no Vercel
+const globalForPrisma = globalThis
+
+const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient()
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma
+}
 
 export default async function handler(req, res) {
   try {
-    // CORS
+    // =========================
+    // 🌐 CORS
+    // =========================
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
@@ -16,20 +27,32 @@ export default async function handler(req, res) {
       return res.status(200).end()
     }
 
+    // =========================
+    // 🔧 BODY SAFE
+    // =========================
+    const body =
+      typeof req.body === 'string'
+        ? JSON.parse(req.body)
+        : req.body || {}
+
     const url = req.url.split('?')[0]
 
     // =========================
-    // HEALTH
+    // ❤️ HEALTH
     // =========================
     if (url === '/api/health' && req.method === 'GET') {
       return res.status(200).json({ status: 'ok' })
     }
 
     // =========================
-    // REGISTER
+    // 🧑 REGISTER
     // =========================
     if (url === '/api/auth/register' && req.method === 'POST') {
-      const { email, username, password, fullName } = req.body
+      const { email, username, password, fullName } = body
+
+      if (!email || !username || !password || !fullName) {
+        return res.status(400).json({ error: 'Dados obrigatórios faltando' })
+      }
 
       const existing = await prisma.user.findFirst({
         where: {
@@ -56,10 +79,14 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // LOGIN
+    // 🔐 LOGIN
     // =========================
     if (url === '/api/auth/login' && req.method === 'POST') {
-      const { email, password } = req.body
+      const { email, password } = body
+
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email e senha obrigatórios' })
+      }
 
       const user = await prisma.user.findUnique({
         where: { email }
@@ -77,7 +104,7 @@ export default async function handler(req, res) {
 
       const token = jwt.sign(
         { id: user.id },
-        process.env.JWT_SECRET,
+        process.env.JWT_SECRET || 'secret',
         { expiresIn: '7d' }
       )
 
@@ -85,7 +112,7 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // GET USERS
+    // 👤 GET USERS
     // =========================
     if (url === '/api/users' && req.method === 'GET') {
       const users = await prisma.user.findMany()
@@ -93,10 +120,14 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // GET USER BY ID
+    // 👤 GET USER BY ID
     // =========================
     if (url.startsWith('/api/users/') && req.method === 'GET') {
       const id = parseInt(url.split('/').pop())
+
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'ID inválido' })
+      }
 
       const user = await prisma.user.findUnique({
         where: { id }
@@ -106,18 +137,18 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // CREATE RESTAURANT
+    // 🍽️ CREATE RESTAURANT
     // =========================
     if (url === '/api/restaurants' && req.method === 'POST') {
       const restaurant = await prisma.restaurant.create({
-        data: req.body
+        data: body
       })
 
       return res.status(201).json(restaurant)
     }
 
     // =========================
-    // GET RESTAURANTS
+    // 🍽️ GET RESTAURANTS
     // =========================
     if (url === '/api/restaurants' && req.method === 'GET') {
       const restaurants = await prisma.restaurant.findMany()
@@ -125,18 +156,18 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // CREATE REVIEW
+    // ⭐ CREATE REVIEW
     // =========================
     if (url === '/api/reviews' && req.method === 'POST') {
       const review = await prisma.review.create({
-        data: req.body
+        data: body
       })
 
       return res.status(201).json(review)
     }
 
     // =========================
-    // GET REVIEWS
+    // ⭐ GET REVIEWS
     // =========================
     if (url === '/api/reviews' && req.method === 'GET') {
       const reviews = await prisma.review.findMany({
@@ -149,14 +180,17 @@ export default async function handler(req, res) {
       return res.status(200).json(reviews)
     }
 
+    // =========================
+    // ❌ 404
+    // =========================
     return res.status(404).json({ error: 'Route not found' })
 
   } catch (error) {
-    console.error(error)
+    console.error('🔥 ERROR:', error)
 
     return res.status(500).json({
       error: 'Internal server error',
-      details: error.message
+      message: error.message
     })
   }
 }
