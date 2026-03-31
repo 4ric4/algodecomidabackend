@@ -1,11 +1,12 @@
 // This file is optional - you can delete it if not needed
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("POSTGRES_PRISMA_DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
+  output   = "/app/generated/prisma-client"
 }
 
 // User model
