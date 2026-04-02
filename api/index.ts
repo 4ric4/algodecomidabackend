@@ -126,16 +126,19 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // 👤 GET USER BY ID OU USERNAME
+    // 👤 GET USER BY ID, USERNAME ou PROFILE/USERNAME
     // =========================
-    if (url.startsWith('/api/users/') && req.method === 'GET') {
-      const param = url.split('/').pop()
+    if ((url.startsWith('/api/users/') || url.startsWith('/api/users/profile/')) && req.method === 'GET') {
+      let param = ''
+      if (url.startsWith('/api/users/profile/')) {
+        param = url.replace('/api/users/profile/', '')
+      } else {
+        param = url.replace('/api/users/', '')
+      }
       let user = null
       if (/^\d+$/.test(param)) {
-        // Se for número, busca por id
         user = await prisma.user.findUnique({ where: { id: parseInt(param) } })
       } else {
-        // Se for string, busca por username
         user = await prisma.user.findUnique({ where: { username: param } })
       }
       if (!user) {
