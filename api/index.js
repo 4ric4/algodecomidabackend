@@ -270,20 +270,43 @@ export default async function handler(req, res) {
     // ⭐ GET REVIEWS
     // =========================
     if (url === '/api/reviews' && req.method === 'GET') {
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
       const reviews = await prisma.review.findMany({
         include: {
           user: true,
-          restaurant: true
+          restaurant: true,
+          likedBy: true,
+          comments: true
         }
       })
 
-      return res.status(200).json(reviews)
+      // Adiciona campo userLiked para cada review
+      const reviewsWithUserLiked = reviews.map(review => {
+        let userLiked = false
+        if (token) {
+          try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+            userLiked = review.likedBy.some(like => like.userId === decoded.id)
+          } catch (error) {
+            // Token inválido, userLiked continua false
+          }
+        }
+        return {
+          ...review,
+          likes: review.likedBy.length,
+          userLiked
+        }
+      })
+
+      return res.status(200).json(reviewsWithUserLiked)
     }
 
     // =========================
     // ⭐ GET REVIEWS BY USER
     // =========================
     if (url.startsWith('/api/reviews/user/') && req.method === 'GET') {
+      const token = req.headers.authorization?.replace('Bearer ', '')
       const userId = parseInt(url.split('/').pop())
       
       if (isNaN(userId)) {
@@ -292,10 +315,33 @@ export default async function handler(req, res) {
       
       const reviews = await prisma.review.findMany({
         where: { userId },
-        include: { user: true, restaurant: true }
+        include: { 
+          user: true, 
+          restaurant: true,
+          likedBy: true,
+          comments: true
+        }
+      })
+
+      // Adiciona campo userLiked para cada review
+      const reviewsWithUserLiked = reviews.map(review => {
+        let userLiked = false
+        if (token) {
+          try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+            userLiked = review.likedBy.some(like => like.userId === decoded.id)
+          } catch (error) {
+            // Token inválido, userLiked continua false
+          }
+        }
+        return {
+          ...review,
+          likes: review.likedBy.length,
+          userLiked
+        }
       })
       
-      return res.status(200).json(reviews)
+      return res.status(200).json(reviewsWithUserLiked)
     }
 
     // =========================
@@ -324,11 +370,26 @@ export default async function handler(req, res) {
           where: {
             userId: { in: followingIds }
           },
-          include: { user: true, restaurant: true },
+          include: { 
+            user: true, 
+            restaurant: true,
+            likedBy: true,
+            comments: true
+          },
           orderBy: { createdAt: 'desc' }
         })
+
+        // Adiciona campo userLiked para cada review
+        const reviewsWithUserLiked = reviews.map(review => {
+          const userLiked = review.likedBy.some(like => like.userId === decoded.id)
+          return {
+            ...review,
+            likes: review.likedBy.length,
+            userLiked
+          }
+        })
         
-        return res.status(200).json(reviews)
+        return res.status(200).json(reviewsWithUserLiked)
       } catch (error) {
         if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
           return res.status(401).json({ error: 'Token inválido' })
@@ -546,6 +607,146 @@ export default async function handler(req, res) {
       })
       
       return res.status(200).json(followers.map(f => f.follower))
+    }
+
+    // =========================
+    // ❤️ TOGGLE LIKE ON REVIEW (POST = LIKE, DELETE = UNLIKE)
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.endsWith('/like') && req.method === 'POST') {
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Não autenticado' })
+      }
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+        const reviewId = parseInt(url.split('/')[3])
+        
+        if (isNaN(reviewId)) {
+          return res.status(400).json({ error: 'ID de review inválido' })
+        }
+        
+        // Verifica se review existe
+        const review = await prisma.review.findUnique({
+          where: { id: reviewId }
+        })
+        
+        if (!review) {
+          return res.status(404).json({ error: 'Review não encontrado' })
+        }
+        
+        // Tenta criar o like (se já existe, ignora erro de constraint)
+        try {
+          await prisma.reviewLike.create({
+            data: {
+              userId: decoded.id,
+              reviewId: reviewId
+            }
+          })
+        } catch (e) {
+          // Like já existe, tudo bem
+          if (!e.code?.includes('P2002')) {
+            throw e
+          }
+        }
+        
+        // Retorna review atualizado com contagem de likes
+        const updatedReview = await prisma.review.findUnique({
+          where: { id: reviewId },
+          include: {
+            user: true,
+            restaurant: true,
+            comments: { include: { user: true } },
+            likedBy: true
+          }
+        })
+        
+        // Verifica se o usuário curtiu
+        const userLiked = updatedReview.likedBy.some(like => like.userId === decoded.id)
+        
+        return res.status(200).json({
+          ...updatedReview,
+          likes: updatedReview.likedBy.length,
+          userLiked
+        })
+      } catch (error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+          return res.status(401).json({ error: 'Token inválido' })
+        }
+        throw error
+      }
+    }
+
+    // =========================
+    // ❤️ UNLIKE REVIEW
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.endsWith('/like') && req.method === 'DELETE') {
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Não autenticado' })
+      }
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+        const reviewId = parseInt(url.split('/')[3])
+        
+        if (isNaN(reviewId)) {
+          return res.status(400).json({ error: 'ID de review inválido' })
+        }
+        
+        // Verifica se review existe
+        const review = await prisma.review.findUnique({
+          where: { id: reviewId }
+        })
+        
+        if (!review) {
+          return res.status(404).json({ error: 'Review não encontrado' })
+        }
+        
+        // Deleta o like se existe
+        try {
+          await prisma.reviewLike.delete({
+            where: {
+              userId_reviewId: {
+                userId: decoded.id,
+                reviewId: reviewId
+              }
+            }
+          })
+        } catch (e) {
+          // Like não existe, tudo bem
+          if (!e.code?.includes('P2025')) {
+            throw e
+          }
+        }
+        
+        // Retorna review atualizado com contagem de likes
+        const updatedReview = await prisma.review.findUnique({
+          where: { id: reviewId },
+          include: {
+            user: true,
+            restaurant: true,
+            comments: { include: { user: true } },
+            likedBy: true
+          }
+        })
+        
+        // Verifica se o usuário curtiu
+        const userLiked = updatedReview.likedBy.some(like => like.userId === decoded.id)
+        
+        return res.status(200).json({
+          ...updatedReview,
+          likes: updatedReview.likedBy.length,
+          userLiked
+        })
+      } catch (error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+          return res.status(401).json({ error: 'Token inválido' })
+        }
+        throw error
+      }
     }
 
     // =========================
