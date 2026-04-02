@@ -194,7 +194,7 @@ export default async function handler(req, res) {
         const restaurant = await prisma.restaurant.create({
           data: {
             ...body,
-            userId: decoded.id
+            createdBy: decoded.id
           }
         })
 
