@@ -182,11 +182,29 @@ export default async function handler(req, res) {
     // 🍽️ CREATE RESTAURANT
     // =========================
     if (url === '/api/restaurants' && req.method === 'POST') {
-      const restaurant = await prisma.restaurant.create({
-        data: body
-      })
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Não autenticado' })
+      }
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+        
+        const restaurant = await prisma.restaurant.create({
+          data: {
+            ...body,
+            userId: decoded.id
+          }
+        })
 
-      return res.status(201).json(restaurant)
+        return res.status(201).json(restaurant)
+      } catch (error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+          return res.status(401).json({ error: 'Token inválido' })
+        }
+        throw error
+      }
     }
 
     // =========================
