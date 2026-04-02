@@ -51,6 +51,32 @@ export default async function handler(req, res) {
     }
 
     // =========================
+    // 🔐 GET CURRENT USER (ME)
+    // =========================
+    if (url === '/api/auth/me' && req.method === 'GET') {
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Não autenticado' })
+      }
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.id }
+        })
+        
+        if (!user) {
+          return res.status(404).json({ error: 'Usuário não encontrado' })
+        }
+        
+        return res.status(200).json(user)
+      } catch (error) {
+        return res.status(401).json({ error: 'Token inválido' })
+      }
+    }
+
+    // =========================
     // 🧑 REGISTER
     // =========================
     if (url === '/api/auth/register' && req.method === 'POST') {
