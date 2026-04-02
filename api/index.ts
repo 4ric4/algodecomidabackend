@@ -404,6 +404,7 @@ export default async function handler(req, res) {
     // ⭐ GET REVIEW BY ID
     // =========================
     if (url.startsWith('/api/reviews/') && req.method === 'GET' && !url.includes('feed') && !url.includes('user') && !url.includes('likes') && !url.includes('comments')) {
+      const token = req.headers.authorization?.replace('Bearer ', '')
       const id = parseInt(url.split('/')[3])
       
       if (isNaN(id)) {
@@ -424,7 +425,21 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Review não encontrado' })
       }
       
-      return res.status(200).json(review)
+      // Verificar se o usuário autenticado curtiu
+      let userLiked = false
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+          userLiked = review.likedBy.some(like => like.userId === decoded.id)
+        } catch (error) {
+          // Token inválido, userLiked continua false
+        }
+      }
+      
+      return res.status(200).json({
+        ...review,
+        userLiked
+      })
     }
 
     // =========================
