@@ -401,6 +401,103 @@ export default async function handler(req, res) {
     }
 
     // =========================
+    // ⭐ GET REVIEW BY ID
+    // =========================
+    if (url.startsWith('/api/reviews/') && req.method === 'GET' && !url.includes('feed') && !url.includes('user') && !url.includes('likes') && !url.includes('comments')) {
+      const id = parseInt(url.split('/')[3])
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'ID de review inválido' })
+      }
+      
+      const review = await prisma.review.findUnique({
+        where: { id },
+        include: {
+          user: true,
+          restaurant: true,
+          comments: { include: { user: true } },
+          likedBy: true
+        }
+      })
+      
+      if (!review) {
+        return res.status(404).json({ error: 'Review não encontrado' })
+      }
+      
+      return res.status(200).json(review)
+    }
+
+    // =========================
+    // 💬 GET COMMENTS OF REVIEW
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.includes('/comments') && req.method === 'GET') {
+      const reviewId = parseInt(url.split('/')[3])
+      
+      if (isNaN(reviewId)) {
+        return res.status(400).json({ error: 'ID de review inválido' })
+      }
+      
+      const comments = await prisma.comment.findMany({
+        where: { reviewId },
+        include: { user: true },
+        orderBy: { createdAt: 'desc' }
+      })
+      
+      return res.status(200).json(comments)
+    }
+
+    // =========================
+    // ❤️ GET LIKES OF REVIEW
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.endsWith('/likes') && req.method === 'GET') {
+      const reviewId = parseInt(url.split('/')[3])
+      
+      if (isNaN(reviewId)) {
+        return res.status(400).json({ error: 'ID de review inválido' })
+      }
+      
+      const likes = await prisma.reviewLike.findMany({
+        where: { reviewId },
+        include: { review: true }
+      })
+      
+      return res.status(200).json(likes)
+    }
+
+    // =========================
+    // ❤️ CHECK IF CURRENT USER LIKED REVIEW
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.endsWith('/liked') && req.method === 'GET') {
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
+      if (!token) {
+        return res.status(200).json({ liked: false })
+      }
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any
+        const reviewId = parseInt(url.split('/')[3])
+        
+        if (isNaN(reviewId)) {
+          return res.status(400).json({ error: 'ID de review inválido' })
+        }
+        
+        const like = await prisma.reviewLike.findUnique({
+          where: {
+            userId_reviewId: {
+              userId: decoded.id,
+              reviewId: reviewId
+            }
+          }
+        })
+        
+        return res.status(200).json({ liked: !!like })
+      } catch (error) {
+        return res.status(200).json({ liked: false })
+      }
+    }
+
+    // =========================
     // ❤️ LIKE/UNLIKE REVIEW
     // =========================
     if (url.startsWith('/api/reviews/') && url.endsWith('/like') && req.method === 'POST') {

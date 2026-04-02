@@ -401,13 +401,77 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // ❤️ LIKE/UNLIKE REVIEW
+    // ⭐ GET REVIEW BY ID
     // =========================
-    if (url.startsWith('/api/reviews/') && url.endsWith('/like') && req.method === 'POST') {
+    if (url.startsWith('/api/reviews/') && req.method === 'GET' && !url.includes('feed') && !url.includes('user') && !url.includes('likes') && !url.includes('comments')) {
+      const id = parseInt(url.split('/')[3])
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'ID de review inválido' })
+      }
+      
+      const review = await prisma.review.findUnique({
+        where: { id },
+        include: {
+          user: true,
+          restaurant: true,
+          comments: { include: { user: true } },
+          likedBy: true
+        }
+      })
+      
+      if (!review) {
+        return res.status(404).json({ error: 'Review não encontrado' })
+      }
+      
+      return res.status(200).json(review)
+    }
+
+    // =========================
+    // 💬 GET COMMENTS OF REVIEW
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.includes('/comments') && req.method === 'GET') {
+      const reviewId = parseInt(url.split('/')[3])
+      
+      if (isNaN(reviewId)) {
+        return res.status(400).json({ error: 'ID de review inválido' })
+      }
+      
+      const comments = await prisma.comment.findMany({
+        where: { reviewId },
+        include: { user: true },
+        orderBy: { createdAt: 'desc' }
+      })
+      
+      return res.status(200).json(comments)
+    }
+
+    // =========================
+    // ❤️ GET LIKES OF REVIEW
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.endsWith('/likes') && req.method === 'GET') {
+      const reviewId = parseInt(url.split('/')[3])
+      
+      if (isNaN(reviewId)) {
+        return res.status(400).json({ error: 'ID de review inválido' })
+      }
+      
+      const likes = await prisma.reviewLike.findMany({
+        where: { reviewId },
+        include: { review: true }
+      })
+      
+      return res.status(200).json(likes)
+    }
+
+    // =========================
+    // ❤️ CHECK IF CURRENT USER LIKED REVIEW
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.endsWith('/liked') && req.method === 'GET') {
       const token = req.headers.authorization?.replace('Bearer ', '')
       
       if (!token) {
-        return res.status(401).json({ error: 'Não autenticado' })
+        return res.status(200).json({ liked: false })
       }
       
       try {
@@ -418,8 +482,7 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'ID de review inválido' })
         }
         
-        // Verifica se já deu like
-        const existingLike = await prisma.reviewLike.findUnique({
+        const like = await prisma.reviewLike.findUnique({
           where: {
             userId_reviewId: {
               userId: decoded.id,
@@ -428,46 +491,9 @@ export default async function handler(req, res) {
           }
         })
         
-        if (existingLike) {
-          // Remove like
-          await prisma.reviewLike.delete({
-            where: {
-              userId_reviewId: {
-                userId: decoded.id,
-                reviewId: reviewId
-              }
-            }
-          })
-          
-          // Decrementa contador de likes no review
-          await prisma.review.update({
-            where: { id: reviewId },
-            data: { likes: { decrement: 1 } }
-          })
-          
-          return res.status(200).json({ liked: false, message: 'Like removido' })
-        } else {
-          // Adiciona like
-          await prisma.reviewLike.create({
-            data: {
-              userId: decoded.id,
-              reviewId: reviewId
-            }
-          })
-          
-          // Incrementa contador de likes no review
-          await prisma.review.update({
-            where: { id: reviewId },
-            data: { likes: { increment: 1 } }
-          })
-          
-          return res.status(201).json({ liked: true, message: 'Like adicionado' })
-        }
+        return res.status(200).json({ liked: !!like })
       } catch (error) {
-        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-          return res.status(401).json({ error: 'Token inválido' })
-        }
-        throw error
+        return res.status(200).json({ liked: false })
       }
     }
 
