@@ -355,16 +355,114 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'ID de review inválido' })
         }
         
-        const comment = await prisma.comment.create({
-          data: {
-            text: body.text,
-            userId: decoded.id,
-            reviewId: reviewId
-          },
-          include: { user: true }
+        // Tenta atualizar se já existe, senão cria
+        let comment = await prisma.comment.findUnique({
+          where: {
+            userId_reviewId: {
+              userId: decoded.id,
+              reviewId: reviewId
+            }
+          }
         })
         
+        if (comment) {
+          // Atualiza comentário existente
+          comment = await prisma.comment.update({
+            where: {
+              userId_reviewId: {
+                userId: decoded.id,
+                reviewId: reviewId
+              }
+            },
+            data: {
+              text: body.text
+            },
+            include: { user: true }
+          })
+        } else {
+          // Cria novo comentário
+          comment = await prisma.comment.create({
+            data: {
+              text: body.text,
+              userId: decoded.id,
+              reviewId: reviewId
+            },
+            include: { user: true }
+          })
+        }
+        
         return res.status(201).json(comment)
+      } catch (error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+          return res.status(401).json({ error: 'Token inválido' })
+        }
+        throw error
+      }
+    }
+
+    // =========================
+    // ❤️ LIKE/UNLIKE REVIEW
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.endsWith('/like') && req.method === 'POST') {
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Não autenticado' })
+      }
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+        const reviewId = parseInt(url.split('/')[3])
+        
+        if (isNaN(reviewId)) {
+          return res.status(400).json({ error: 'ID de review inválido' })
+        }
+        
+        // Verifica se já deu like
+        const existingLike = await prisma.reviewLike.findUnique({
+          where: {
+            userId_reviewId: {
+              userId: decoded.id,
+              reviewId: reviewId
+            }
+          }
+        })
+        
+        if (existingLike) {
+          // Remove like
+          await prisma.reviewLike.delete({
+            where: {
+              userId_reviewId: {
+                userId: decoded.id,
+                reviewId: reviewId
+              }
+            }
+          })
+          
+          // Decrementa contador de likes no review
+          await prisma.review.update({
+            where: { id: reviewId },
+            data: { likes: { decrement: 1 } }
+          })
+          
+          return res.status(200).json({ liked: false, message: 'Like removido' })
+        } else {
+          // Adiciona like
+          await prisma.reviewLike.create({
+            data: {
+              userId: decoded.id,
+              reviewId: reviewId
+            }
+          })
+          
+          // Incrementa contador de likes no review
+          await prisma.review.update({
+            where: { id: reviewId },
+            data: { likes: { increment: 1 } }
+          })
+          
+          return res.status(201).json({ liked: true, message: 'Like adicionado' })
+        }
       } catch (error) {
         if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
           return res.status(401).json({ error: 'Token inválido' })
