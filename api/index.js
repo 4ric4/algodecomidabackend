@@ -216,14 +216,54 @@ export default async function handler(req, res) {
     }
 
     // =========================
+    // 🍽️ GET RESTAURANT BY ID
+    // =========================
+    if (url.startsWith('/api/restaurants/') && req.method === 'GET' && !url.includes('feed')) {
+      const id = parseInt(url.split('/').pop())
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'ID inválido' })
+      }
+      
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { id },
+        include: { user: true, reviews: true }
+      })
+      
+      if (!restaurant) {
+        return res.status(404).json({ error: 'Restaurante não encontrado' })
+      }
+      
+      return res.status(200).json(restaurant)
+    }
+
+    // =========================
     // ⭐ CREATE REVIEW
     // =========================
     if (url === '/api/reviews' && req.method === 'POST') {
-      const review = await prisma.review.create({
-        data: body
-      })
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Não autenticado' })
+      }
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+        
+        const review = await prisma.review.create({
+          data: {
+            ...body,
+            userId: decoded.id
+          }
+        })
 
-      return res.status(201).json(review)
+        return res.status(201).json(review)
+      } catch (error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+          return res.status(401).json({ error: 'Token inválido' })
+        }
+        throw error
+      }
     }
 
     // =========================
@@ -238,6 +278,135 @@ export default async function handler(req, res) {
       })
 
       return res.status(200).json(reviews)
+    }
+
+    // =========================
+    // ⭐ GET REVIEWS BY USER
+    // =========================
+    if (url.startsWith('/api/reviews/user/') && req.method === 'GET') {
+      const userId = parseInt(url.split('/').pop())
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'ID de usuário inválido' })
+      }
+      
+      const reviews = await prisma.review.findMany({
+        where: { userId },
+        include: { user: true, restaurant: true }
+      })
+      
+      return res.status(200).json(reviews)
+    }
+
+    // =========================
+    // ⭐ GET REVIEWS FEED (FOLLOWING)
+    // =========================
+    if (url === '/api/reviews/feed/following' && req.method === 'GET') {
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Não autenticado' })
+      }
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+        
+        // Pega todos os usuários que o user atual está seguindo
+        const following = await prisma.follow.findMany({
+          where: { followerId: decoded.id },
+          select: { followingId: true }
+        })
+        
+        const followingIds = following.map(f => f.followingId)
+        
+        // Pega reviews dos usuários que ele segue
+        const reviews = await prisma.review.findMany({
+          where: {
+            userId: { in: followingIds }
+          },
+          include: { user: true, restaurant: true },
+          orderBy: { createdAt: 'desc' }
+        })
+        
+        return res.status(200).json(reviews)
+      } catch (error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+          return res.status(401).json({ error: 'Token inválido' })
+        }
+        throw error
+      }
+    }
+
+    // =========================
+    // 💬 POST COMMENT ON REVIEW
+    // =========================
+    if (url.startsWith('/api/reviews/') && url.includes('/comments') && req.method === 'POST') {
+      const token = req.headers.authorization?.replace('Bearer ', '')
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Não autenticado' })
+      }
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret')
+        const reviewId = parseInt(url.split('/')[3])
+        
+        if (isNaN(reviewId)) {
+          return res.status(400).json({ error: 'ID de review inválido' })
+        }
+        
+        const comment = await prisma.comment.create({
+          data: {
+            text: body.text,
+            userId: decoded.id,
+            reviewId: reviewId
+          },
+          include: { user: true }
+        })
+        
+        return res.status(201).json(comment)
+      } catch (error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+          return res.status(401).json({ error: 'Token inválido' })
+        }
+        throw error
+      }
+    }
+
+    // =========================
+    // 👤 GET USER FOLLOWING LIST
+    // =========================
+    if (url.startsWith('/api/users/') && url.includes('/following-list') && req.method === 'GET') {
+      const userId = parseInt(url.split('/')[3])
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'ID de usuário inválido' })
+      }
+      
+      const following = await prisma.follow.findMany({
+        where: { followerId: userId },
+        include: { following: true }
+      })
+      
+      return res.status(200).json(following.map(f => f.following))
+    }
+
+    // =========================
+    // 👤 GET USER FOLLOWERS
+    // =========================
+    if (url.startsWith('/api/users/') && url.endsWith('/followers') && req.method === 'GET') {
+      const userId = parseInt(url.split('/')[3])
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'ID de usuário inválido' })
+      }
+      
+      const followers = await prisma.follow.findMany({
+        where: { followingId: userId },
+        include: { follower: true }
+      })
+      
+      return res.status(200).json(followers.map(f => f.follower))
     }
 
     // =========================
