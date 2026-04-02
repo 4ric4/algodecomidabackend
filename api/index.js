@@ -126,19 +126,29 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // 👤 GET USER BY ID
+    // 👤 GET USER BY ID, USERNAME ou PROFILE/USERNAME
     // =========================
-    if (url.startsWith('/api/users/') && req.method === 'GET') {
-      const id = parseInt(url.split('/').pop())
-
-      if (isNaN(id)) {
-        return res.status(400).json({ error: 'ID inválido' })
+    if ((url.startsWith('/api/users/') || url.startsWith('/api/users/profile/')) && req.method === 'GET') {
+      console.log('🔍 BUSCANDO USUÁRIO - URL:', url)
+      let param = ''
+      if (url.startsWith('/api/users/profile/')) {
+        param = url.replace('/api/users/profile/', '')
+      } else {
+        param = url.replace('/api/users/', '')
       }
-
-      const user = await prisma.user.findUnique({
-        where: { id }
-      })
-
+      console.log('🔍 PARAM EXTRAÍDO:', param)
+      let user = null
+      if (/^\d+$/.test(param)) {
+        console.log('🔍 BUSCANDO POR ID:', param)
+        user = await prisma.user.findUnique({ where: { id: parseInt(param) } })
+      } else {
+        console.log('🔍 BUSCANDO POR USERNAME:', param)
+        user = await prisma.user.findUnique({ where: { username: param } })
+      }
+      console.log('🔍 USUÁRIO ENCONTRADO:', user)
+      if (!user) {
+        return res.status(404).json({ error: 'Usuário não encontrado' })
+      }
       return res.status(200).json(user)
     }
 
