@@ -126,19 +126,21 @@ export default async function handler(req, res) {
     }
 
     // =========================
-    // 👤 GET USER BY ID
+    // 👤 GET USER BY ID OU USERNAME
     // =========================
     if (url.startsWith('/api/users/') && req.method === 'GET') {
-      const id = parseInt(url.split('/').pop())
-
-      if (isNaN(id)) {
-        return res.status(400).json({ error: 'ID inválido' })
+      const param = url.split('/').pop()
+      let user = null
+      if (/^\d+$/.test(param)) {
+        // Se for número, busca por id
+        user = await prisma.user.findUnique({ where: { id: parseInt(param) } })
+      } else {
+        // Se for string, busca por username
+        user = await prisma.user.findUnique({ where: { username: param } })
       }
-
-      const user = await prisma.user.findUnique({
-        where: { id }
-      })
-
+      if (!user) {
+        return res.status(404).json({ error: 'Usuário não encontrado' })
+      }
       return res.status(200).json(user)
     }
 
